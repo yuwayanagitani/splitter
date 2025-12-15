@@ -1,54 +1,48 @@
-# AI Card Splitter
+# Anki AI Splitter
+
+AnkiWeb: https://ankiweb.net/shared/by-author/2117859718
 
 Long “wall-of-text” answers are hard to review. This add-on uses an AI model to split one long Anki card into multiple shorter Q&A cards while keeping your original note intact.
 
 ## Features
-- Use AI to split long answers into multiple digestible Q&A cards.
-- Keeps the original note unchanged and optionally creates new notes/cards.
-- Configurable splitting strategy and card templates.
-- Works in batch mode from the Browser.
+- AI-powered splitting of long answers into smaller Q&A items
+- Preview splits before applying
+- Keeps original note as-is and creates new child cards/notes
+- Configurable prompts and split granularity
 
 ## Requirements
-- Anki 2.1+
-- Optional AI provider (OpenAI/Gemini) for intelligent splitting. A heuristic local fallback may be available.
+- An API key for an AI provider (OpenAI, Gemini, or other supported provider)
+- Internet connection for AI requests
 
 ## Installation
-1. Clone or download the repository.
-2. Place the add-on folder into the Anki add-ons directory.
+1. Tools → Add-ons → Open Add-ons Folder.
+2. Copy the add-on folder into the add-ons directory.
 3. Restart Anki.
 
 ## Usage
-- Select notes in the Browser that have long answers.
-- Run “AI Split Selected Notes”.
-- Review suggested splits and adjust if necessary, then confirm to create new cards.
+- Select a note → Tools → AI Splitter → Preview split.
+- Review suggested cards and accept to create them.
 
 ## Configuration
-- Choose provider and credentials (if using AI).
-- Set maximum card length, minimum context overlap, and templates for generated cards.
-- Option to auto-apply splits or require manual confirmation.
+Edit `config.json`:
+- provider (e.g., "openai" or "gemini")
+- api_key (store securely; follow provider guidance)
+- max_chunk_length, prompt template, target fields
 
-Example config:
+Example:
 ```json
 {
   "provider": "openai",
-  "max_tokens_per_card": 150,
-  "confirm_before_create": true
+  "model": "gpt-4o-mini",
+  "prompt_template": "Split this answer into multiple question–answer pairs..."
 }
 ```
 
-## Privacy & Best Practices
-- Review generated cards for correctness and completeness — AI can make mistakes.
-- Avoid sending sensitive information to cloud providers unless permitted.
+## Privacy & Safety
+Card content is sent to the selected AI provider. Do not send private or sensitive data unless you accept provider terms.
 
-## Troubleshooting
-- If splitting fails, check API key, network connectivity, and Anki console logs.
-- For odd splits, adjust the prompt or splitting parameters.
-
-## Development
-- Contributions welcome. Provide test cases and sample notes when opening an issue.
+## Issues & Support
+Please include Anki version, add-on version, and an example note when filing bugs.
 
 ## License
-MIT License — see LICENSE file.
-
-## Contact
-Author: yuwayanagitani
+See LICENSE.
