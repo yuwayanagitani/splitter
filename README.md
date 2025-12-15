@@ -1,233 +1,204 @@
-# Anki AI Splitter
+# AI Card Divider (Anki Add-on)
 
-Long "wall-of-text" answers are hard to review. Anki AI Splitter uses an AI model to split one long Anki note (or card) into multiple shorter Q&A cards while keeping the original note intact. This makes reviewing long answers easier, improves Active Recall, and helps you convert exposition-style notes into compact question/answer pairs.
+AI Card Divider is an Anki add-on that helps you break up cards with long answers into multiple smaller, review-friendly Q&A cards using an AI model.
 
-Repository: [yuwayanagitani/anki-ai-splitter](https://github.com/yuwayanagitani/anki-ai-splitter)
-
-Table of contents
-- Features
-- Requirements
-- Installation
-  - Install from Anki (if distributed via AnkiWeb)
-  - Manual install (recommended for developers)
-- Configuration
-- Usage
-  - In the Editor
-  - In the Browser (batch splitting)
-- Options & settings explained
-- Example
-- Tips & prompt customization
-- Troubleshooting
-- Privacy & Security
-- Development & Contributing
-- License
-- Support
+It is designed for workflows where your notes start as long explanations (e.g., lecture notes, textbook paragraphs, clinical summaries) and you want to convert them into short active-recall cards without doing manual copy/paste.
 
 ---
 
-## Features
-- Split a single long answer/explanation into multiple concise Q&A pairs using an AI model.
-- Keep the original note intact (you can choose to keep or duplicate).
-- Map newly generated Q&A to your note fields (customizable).
-- Tag new notes, optionally add a suffix/prefix to note titles.
-- Preview generated splits before committing them to your collection.
-- Batch-split multiple notes from the Browser.
-- Support for remote AI APIs (OpenAI, Hugging Face Inference, or any compatible HTTP endpoint) and configurable model settings.
+## What it does
+
+When you run the add-on on a note whose answer is “too long” (over a character limit you set), it:
+
+1. Sends the note’s question + long answer to an AI provider (OpenAI or Gemini)
+2. Receives multiple short {question, answer} pairs (JSON)
+3. Creates new notes in the same note type and deck
+4. Adds tags so you can track what was created and avoid re-splitting the same source note
+
+The original note is not deleted.
 
 ---
 
-## Requirements
-- Anki 2.1.x (tested on the latest 2.1 series). Compatibility with older versions is not guaranteed.
-- Internet connection if you use a hosted AI provider (OpenAI, Hugging Face, etc).
-- API key for the AI provider you choose (unless using a self-hosted/local model).
-- Typical Python runtime and libraries are provided by Anki; if additional third-party packages are required they will be documented in the repository.
+## Main entry points
+
+The add-on provides two ways to run splitting:
+
+### A) Tools menu (search query mode)
+
+Menu item:
+- Tools → AI Card Divider: Split Long Answers...
+
+Flow:
+- You enter a search query (e.g., `deck:Internal tag:med`)
+- The add-on finds notes matching the query
+- It processes only notes where the target answer field exceeds your configured length
+
+### B) Browser context menu (selected notes mode)
+
+In the Browser:
+- Select notes
+- Right-click → Split selected notes with AI
+
+Only selected notes are processed (and only those exceeding the length threshold).
 
 ---
 
 ## Installation
 
-### Option A — Install from AnkiWeb (recommended if available)
-1. Open Anki.
-2. Tools → Add-ons → Get Add-ons...
-3. Enter the add-on code (if published on AnkiWeb) and install.
-4. Restart Anki.
+### Option 1: AnkiWeb (recommended)
+- Install the add-on from AnkiWeb (standard Anki add-on workflow)
+- Restart Anki
 
-(If this add-on is published on AnkiWeb, the listing will provide the code.)
+### Option 2: GitHub / manual
+- Place the add-on folder inside your Anki `addons21` directory
+- Restart Anki
 
-### Option B — Manual install (clone from GitHub)
-Install into Anki's `addons21` folder:
+---
 
-1. Find your addons folder:
-   - Windows: `%APPDATA%\Anki2\addons21`
-   - macOS: `~/Library/Application Support/Anki2/addons21`
-   - Linux: `~/.local/share/Anki2/addons21`
+## Setup: API keys (required)
 
-2. Clone the repository into a new directory inside `addons21`:
-   - Example (replace the path with yours):
-     ```
-     cd "<path to addons21>"
-     git clone https://github.com/yuwayanagitani/anki-ai-splitter anki-ai-splitter
-     ```
-3. Restart Anki.
+This add-on reads your API key from an environment variable.
 
-Notes:
-- If the add-on depends on extra Python packages that are not present in Anki's bundled Python environment, see the Development section for how to install them into Anki's Python environment.
+Default environment variables:
+- OpenAI: `OPENAI_API_KEY`
+- Gemini: `GEMINI_API_KEY`
+
+If the environment variable is missing, the add-on will show an error dialog.
+
+Tip: environment variables must be available to the Anki process.
 
 ---
 
 ## Configuration
-After installing, open the add-on configuration to set your model and API credentials.
 
-1. Tools → Add-ons.
-2. Select "Anki AI Splitter" from the list.
-3. Click "Config" (or open add-on Preferences from the add-on menu if available).
+Open:
+- Tools → Add-ons → select “AI Card Divider” → Config
 
-Typical configuration options:
-- Provider: `openai`, `huggingface`, `custom-http`
-- API key / Endpoint URL / Additional headers
-- Default model (e.g., `gpt-4o`, `gpt-4`, `gpt-3.5-turbo`, or a Hugging Face model id)
-- Default max tokens / temperature / top_p
-- Default field mapping (which fields hold generated `Question` and `Answer`)
-- Default behavior for keeping original note, tagging new notes, and previewing
+This add-on registers a custom configuration dialog (so you don’t need to edit JSON by hand).
 
-Important:
-- Store API keys securely. Do not commit API keys into the repository or share them publicly.
+### General
 
----
+- Question field  
+  The field name used as the “question” text (default: `Front`)
 
-## Usage
+- Answer field  
+  The field name used as the “answer” text to split (default: `Back`)
 
-This add-on works in two places: the Editor (single note) and the Browser (batch notes).
+- Max answer chars  
+  Notes are processed only if the answer field exceeds this many characters (default: `220`)
 
-### In the Editor (split a single note)
-1. Open or create the note you want to split in the Editor.
-2. Populate the field that contains the long answer/explanation (for example: `Back`, `Explanation`).
-3. Open the add-on dialog:
-   - Usually accessible via a toolbar button, menu entry (e.g., Tools → AI Splitter → Split Current Note), or a context menu inside the Editor.
-4. Configure options (or use defaults):
-   - Choose the model/provider
-   - Number of Q&A pairs (or let the AI decide)
-   - Max length per answer/question
-   - Whether to keep the original note or create new separate notes
-   - Field mapping for `Question` and `Answer`
-5. Click "Preview" to see the proposed Q&A splits (recommended).
-6. Review the generated Q&As. Edit any Q/A text in preview if needed.
-7. Click "Apply" (or "Commit") to create new notes/cards in your collection.
+- Output language  
+  Language for both generated questions and answers (default: `English`, can also set `Japanese` or any custom text)
 
-Result:
-- New notes are created according to your field mapping and tagging preferences.
-- The original note is preserved or modified depending on your setting.
+- Max cards  
+  Maximum number of split cards to generate per source note (default: `5`)
 
-### In the Browser (batch split multiple notes)
-1. Open the Browser.
-2. Filter/select the notes you want to process (multiselect).
-3. Right-click → Tools → AI Splitter → Split Selected Notes (or use the add-on's Browser menu item).
-4. Configure batch options (model, keep originals, tags).
-5. Start the batch job.
-6. For each note, the tool can either auto-apply the generated splits or open a preview dialog for manual review (configurable).
+### Provider
 
-Batch mode notes:
-- Batch processing can trigger many API calls — watch your rate limits and quotas.
-- Consider testing with 1–5 notes first.
+- Provider  
+  Choose `openai` or `gemini`
 
----
+### OpenAI
 
-## Options & settings explained
+- Model (default: `gpt-4o-mini`)
+- API key env (default: `OPENAI_API_KEY`)
+- API base (default: `https://api.openai.com/v1/chat/completions`)
 
-- Provider: The backend AI provider; affects how prompts and authentication are handled.
-- Model: Which AI model to use (size and behavior differ).
-- Max splits: Maximum number of Q&A pairs to generate.
-- Temperature: Controls randomness. 0.0 = deterministic; 0.7 = creative.
-- Max tokens / Response length: Limit output size to avoid truncated or overly long answers.
-- Field mapping: Map the AI-generated `Question` and `Answer` to your note fields (e.g., `Front` and `Back`).
-- Keep original note: If enabled, the original note is left untouched and only new notes are created. If disabled, the original may be replaced or modified.
-- Tagging: Add a tag (e.g., `ai-split`) to newly created notes for easy filtering.
-- Preview before commit: Recommended for quality control.
-- Preserve formatting/HTML: If your notes contain HTML or media, enable this option to preserve them where possible.
-- Undo: The add-on should create operations that can be undone by Anki's built-in undo, but double-check after batch operations.
+### Gemini
+
+- Model (default: `gemini-2.5-flash`)
+- API key env (default: `GEMINI_API_KEY`)
+- API base (default: `https://generativelanguage.googleapis.com/v1beta`)
+
+### Generation
+
+- Temperature (default: `0.2`)
+- Max output tokens (default: `500`)
+
+### Tags
+
+- Tag for new notes (default: `SplitFromLong`)
+- Tag for original note (default: `LongAnswerSplitSource`)
+
+These tags are important:
+
+- New notes get:
+  - `SplitFromLong`
+  - `SplitFromLong_<SOURCE_NOTE_ID>` (to track provenance)
+
+- The original note gets:
+  - `LongAnswerSplitSource`
+
+Notes with either tag are skipped on future runs to prevent accidental duplication.
 
 ---
 
-## Example
+## What gets copied into new notes
 
-Input (single long answer in field `Explanation`):
-> "Photosynthesis is the process by which green plants, algae, and some bacteria use sunlight to convert carbon dioxide and water into glucose and oxygen. The process occurs in chloroplasts and involves light-dependent reactions and the Calvin cycle. Light reactions capture light energy to make ATP and NADPH. Then the Calvin cycle uses ATP and NADPH to fix CO2 into organic molecules..."
+For each generated split card, the add-on creates a new note using the same note type as the original.
 
-Generated Q&A preview (example):
-- Q1: What is photosynthesis?
-  - A1: Photosynthesis is the process by which plants, algae, and some bacteria convert sunlight, carbon dioxide, and water into glucose and oxygen.
-- Q2: Where does photosynthesis take place?
-  - A2: Photosynthesis occurs in chloroplasts.
-- Q3: What are the two main stages of photosynthesis?
-  - A3: The light-dependent reactions and the Calvin cycle.
-- Q4: What do the light-dependent reactions produce for the Calvin cycle?
-  - A4: ATP and NADPH, which the Calvin cycle uses to fix CO2 into organic molecules.
+It copies all fields from the original note first, then overwrites:
+- Question field → generated question
+- Answer field → generated answer
 
-You can edit any Q/A in the preview, then commit to create four new notes (or cards) according to your templates and field mapping.
+Tags are based on the original note’s tags plus the new-note tags above.
+
+The new note is added to the same deck as the original note’s first card (fallback: current deck).
 
 ---
 
-## Tips & prompt customization
-- Keep the prompt's instruction explicit: ask the model to "Create concise question-answer pairs" and constrain the number, tone, or length.
-- If your notes include code blocks or special formatting, instruct the model to preserve markdown/HTML and keep code fences intact.
-- Example prompt (internal, used by the add-on; you can customize):
-  "You are a helpful assistant. Given the following explanation, generate up to {N} question-and-answer pairs suitable for Anki flashcards. Each question should be concise and test a single fact or concept. Keep answers short (1–2 sentences). Output as JSON array of objects with 'question' and 'answer' fields."
-- Use preview mode to verify the model follows the requested format and constraints.
-- If generation quality is low, try lowering temperature or changing model.
+## AI output rules (important)
+
+The add-on asks the AI to return JSON only, with this structure:
+
+- a single JSON object
+- a `cards` list
+- each item has `question` and `answer`
+
+Additional constraints requested:
+- no bullet lists
+- no markdown
+- no HTML
+- answers should be concise (about 1–3 sentences)
+
+Some providers sometimes wrap JSON in code fences; the add-on includes robust JSON extraction to handle that.
 
 ---
 
 ## Troubleshooting
 
-- "No API key configured" — Open the add-on config and add your provider/API key.
-- "Rate limit / 429" — You hit an API rate limit. Wait, lower batch size, or upgrade your plan.
-- "Model returned malformed output" — Try enabling strict JSON output in settings or lower temperature. Use preview to manually correct.
-- "Media / images lost" — Ensure 'preserve formatting' is enabled. If the add-on cannot reliably extract/attach media, perform a manual check.
-- "Anki crash after install" — Remove the add-on folder from `addons21` and restart Anki, then open an issue with logs.
+### “API key is missing…”
+Your environment variable is not set (or not visible to Anki).
+- Set `OPENAI_API_KEY` or `GEMINI_API_KEY`
+- Restart Anki after setting it
 
-If you encounter an error, please open an issue at the repository with:
-- Anki version
-- Add-on version (commit/branch)
-- Steps to reproduce
-- Any error messages from Anki's debug console
+### “Failed to parse JSON in model response…”
+The model returned non-JSON or truncated output.
+Try:
+- Increasing “Max output tokens”
+- Using a more reliable model
+- Keeping the input answer shorter (or splitting manually into smaller chunks first)
+
+### Nothing happens / “No long answers”
+Check:
+- Field names match your note type (`Front` / `Back` by default)
+- Your “Max answer chars” threshold is not too high
+- The notes aren’t already tagged as processed
+
+### Rate limits / HTTP errors
+- Try fewer notes at once
+- Switch provider/model
+- Wait and retry
 
 ---
 
-## Privacy & Security
-- Data sent to AI providers may contain your note content. Treat this as potentially sensitive.
-- Consider using a self-hosted or local model if your notes contain private or sensitive information.
-- Do not commit API keys or personal data to the repository.
-- The add-on supports configuring different endpoints; point it to a private endpoint to keep data within your environment.
+## Privacy / safety
 
----
-
-## Development & Contributing
-Contributions, bug reports, and feature requests are welcome.
-
-- To run locally:
-  1. Clone the repository.
-  2. Install dependencies (if any) into Anki's Python environment or a virtual environment used for testing.
-  3. Copy the add-on folder into your `addons21` and restart Anki during development to test changes.
-
-- Suggested workflow:
-  - Fork the repo.
-  - Create a feature branch: `git checkout -b feat/short-qas`
-  - Make changes and test in Anki.
-  - Open a pull request with a clear description and screenshots if applicable.
-
-- Please follow repository code style and include tests where appropriate.
+This add-on sends note content (question + answer) to the selected AI provider.
+Do not process sensitive or private data unless you understand and accept the provider’s data handling and policies.
 
 ---
 
 ## License
-See the repository `LICENSE` file for license details. If no license is present, contact the author before reusing code.
 
----
-
-## Support
-- Report bugs and request features via GitHub Issues: [Issues · yuwayanagitani/anki-ai-splitter](https://github.com/yuwayanagitani/anki-ai-splitter/issues)
-- For local setup questions, include your Anki version and a minimal reproducible example.
-
----
-
-Thank you for using Anki AI Splitter! If you find it helpful, please leave a star on the GitHub repo and consider contributing improvements or translations.
+See the LICENSE file in this repository.
