@@ -69,6 +69,7 @@ MSG_DONE_TITLE = ADDON_NAME
 PROGRESS_TITLE = "Splitting long answers with AI..."
 PROGRESS_STEP_FMT = "Processing note {idx}/{total}..."
 
+TOOLS_ACTION_OBJNAME = "spliter-ai:tools-action"
 
 def show_error_dialog(msg: str) -> None:
     QMessageBox.critical(mw, f"{ADDON_NAME} - Error", msg)
@@ -923,9 +924,20 @@ def on_profile_did_open() -> None:
             pass
 
 def add_tools_menu_action() -> None:
-    action = QAction(MENU_ACTION, mw)
-    action.triggered.connect(split_long_answers_for_query)
-    mw.form.menuTools.addAction(action)
+    menu = mw.form.menuTools
+
+    # すでに追加済みなら何もしない（重複防止）
+    for act in menu.actions():
+        if act.objectName() == TOOLS_ACTION_OBJNAME:
+            return
+
+    action = QAction(MENU_ACTION, menu)   # parentは menu が安全
+    action.setObjectName(TOOLS_ACTION_OBJNAME)
+
+    # triggered(bool) 対策（安全に）
+    action.triggered.connect(lambda _checked=False: split_long_answers_for_query())
+
+    menu.addAction(action)
 
 def split_selected_notes_in_browser(browser: Browser) -> None:
     config = get_config()
@@ -1058,6 +1070,141 @@ def on_browser_context_menu(browser: Browser, menu) -> None:
     )
     menu.addAction(action)
 
+
+# =============================================================================
+# Reviewer: "More" (Other) menu action
+# - Split current card's note on demand
+# - Ignore max_answer_chars (minimum length) in this path
+# =============================================================================
+
+def split_current_reviewer_note(reviewer) -> None:
+    if not mw.col:
+        return
+
+    config = get_config()
+
+    # current card -> current note
+    card = getattr(reviewer, "card", None)
+    if not card:
+        QMessageBox.information(mw, ADDON_NAME, "No current card.")
+        return
+
+    note = card.note()
+    if note is None:
+        QMessageBox.information(mw, ADDON_NAME, "No note found for the current card.")
+        return
+
+    q_field = str(config["question_field"])
+    a_field = str(config["answer_field"])
+    tag_new = str(config["tag_for_new"])
+    tag_orig = str(config["tag_for_original"])
+
+    if q_field not in note or a_field not in note:
+        QMessageBox.information(
+            mw,
+            ADDON_NAME,
+            f"Missing fields. Check config:\n- Question field: {q_field}\n- Answer field: {a_field}",
+        )
+        return
+
+    # (Optional) prevent re-splitting if already processed
+    # NOTE: We still ignore max_answer_chars here, as requested.
+    if tag_orig in (note.tags or []):
+        ret = QMessageBox.question(
+            mw,
+            "Confirm",
+            "This note already looks like it was processed (original tag exists).\n\nSplit again anyway?",
+        )
+        if ret != QMessageBox.StandardButton.Yes:
+            return
+
+    ret = QMessageBox.question(
+        mw,
+        "Confirm",
+        "Split THIS card's note using AI?\n\n"
+        f"- Original note will NOT be deleted\n"
+        f"- Tag added to original: {tag_orig}\n"
+        f"- New notes will get: {tag_new} (+ {tag_new}_{note.id})",
+    )
+    if ret != QMessageBox.StandardButton.Yes:
+        return
+
+    question_text = note[q_field]
+    answer_text = note[a_field]
+
+    mw.progress.start(max=1, label="Splitting this note with AI...")
+
+    created_count = 0
+    try:
+        try:
+            # Review経由はユーザーが「分割したい」と明示しているので minimum チェックを無視する
+            force_cfg = dict(config)
+            force_cfg["max_answer_chars"] = 0
+            force_cfg["03_max_answer_chars"] = 0  # ← minimum無視
+
+            split_cards = call_llm_to_split(
+                question=question_text,
+                answer=answer_text,
+                config=force_cfg,
+            )
+        except Exception as e:
+            show_error_dialog(
+                f"Error while splitting note {note.id}:\n\n{str(e)}\n\nQuestion:\n{question_text[:200]}..."
+            )
+            return
+
+        notetype = note.note_type()
+        deck_id = getattr(card, "did", None) or mw.col.decks.get_current_id()
+
+        for sc in split_cards:
+            new_note: Note = mw.col.new_note(notetype)
+
+            # Copy all fields first
+            for i, val in enumerate(note.fields):
+                if i < len(new_note.fields):
+                    new_note.fields[i] = val
+
+            new_note[q_field] = sc.question
+            new_note[a_field] = sc.answer
+
+            new_tags = set(note.tags or [])
+            new_tags.add(tag_new)
+            new_tags.add(f"{tag_new}_{note.id}")
+            new_note.tags = list(new_tags)
+
+            mw.col.add_note(new_note, deck_id)
+            created_count += 1
+
+        # Tag original note
+        orig_tags = set(note.tags or [])
+        orig_tags.add(tag_orig)
+        note.tags = list(orig_tags)
+        note.flush()
+
+        mw.col.save()
+
+    finally:
+        mw.progress.finish()
+
+    QMessageBox.information(
+        mw,
+        ADDON_NAME,
+        f"Done.\n\nNew notes created: {created_count}",
+    )
+
+
+def on_reviewer_more_menu(reviewer, menu) -> None:
+    # parent は QObject が必要なので menu を渡す（menu は QObject）
+    action = QAction("Split this card with AI", menu)
+
+    # triggered は bool を渡してくるので _checked を受ける
+    action.triggered.connect(lambda _checked=False, r=reviewer: split_current_reviewer_note(r))
+
+    menu.addAction(action)
+
+
+# Add to Reviewer's "More" menu
+gui_hooks.reviewer_will_show_context_menu.append(on_reviewer_more_menu)
 
 gui_hooks.browser_will_show_context_menu.append(on_browser_context_menu)
 
