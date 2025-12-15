@@ -26,6 +26,8 @@ from aqt.qt import (
     QScrollArea,
     QWidget,
 )
+from aqt.browser import Browser
+
 
 # --- Qt Network imports (prefer aqt.qt, fall back to PyQt6/PyQt5) ---
 try:
@@ -924,6 +926,140 @@ def add_tools_menu_action() -> None:
     action = QAction(MENU_ACTION, mw)
     action.triggered.connect(split_long_answers_for_query)
     mw.form.menuTools.addAction(action)
+
+def split_selected_notes_in_browser(browser: Browser) -> None:
+    config = get_config()
+
+    note_ids = browser.selectedNotes()
+    if not note_ids:
+        QMessageBox.information(
+            browser,
+            ADDON_NAME,
+            "No notes selected.",
+        )
+        return
+
+    q_field = str(config["question_field"])
+    a_field = str(config["answer_field"])
+    max_len = int(config["max_answer_chars"])
+    tag_new = str(config["tag_for_new"])
+    tag_orig = str(config["tag_for_original"])
+
+    skip_tags = {tag_new, tag_orig}
+
+    target_notes: List[int] = []
+
+    for nid in note_ids:
+        note = mw.col.get_note(nid)
+        if note is None:
+            continue
+        if set(note.tags) & skip_tags:
+            continue
+        if q_field not in note or a_field not in note:
+            continue
+        if len(note[a_field]) > max_len:
+            target_notes.append(nid)
+
+    if not target_notes:
+        QMessageBox.information(
+            browser,
+            ADDON_NAME,
+            f"No selected notes had an answer longer than {max_len} characters.",
+        )
+        return
+
+    if (
+        QMessageBox.question(
+            browser,
+            "Confirm",
+            f"{len(target_notes)} selected notes will be split using AI.\n\nProceed?",
+        )
+        != QMessageBox.StandardButton.Yes
+    ):
+        return
+
+    created_count = 0
+    error_count = 0
+
+    mw.progress.start(
+        max=len(target_notes),
+        label="Splitting selected notes with AI...",
+    )
+
+    try:
+        for i, nid in enumerate(target_notes, 1):
+            mw.progress.update(
+                label=f"Processing note {i}/{len(target_notes)}...",
+                value=i,
+            )
+
+            note = mw.col.get_note(nid)
+            if note is None:
+                continue
+
+            try:
+                split_cards = call_llm_to_split(
+                    question=note[q_field],
+                    answer=note[a_field],
+                    config=config,
+                )
+            except Exception as e:
+                error_count += 1
+                show_error_dialog(
+                    f"Error while splitting note {nid}:\n\n{str(e)}"
+                )
+                continue
+
+            notetype = note.note_type()
+            cards = note.cards()
+            deck_id = cards[0].did if cards else mw.col.decks.get_current_id()
+
+            for sc in split_cards:
+                new_note: Note = mw.col.new_note(notetype)
+
+                # copy all fields
+                for idx, val in enumerate(note.fields):
+                    if idx < len(new_note.fields):
+                        new_note.fields[idx] = val
+
+                new_note[q_field] = sc.question
+                new_note[a_field] = sc.answer
+
+                new_tags = set(note.tags)
+                new_tags.add(tag_new)
+                new_tags.add(f"{tag_new}_{nid}")
+                new_note.tags = list(new_tags)
+
+                mw.col.add_note(new_note, deck_id)
+                created_count += 1
+
+            note.tags = list(set(note.tags) | {tag_orig})
+            note.flush()
+
+    finally:
+        mw.progress.finish()
+
+    mw.col.save()
+    mw.reset()
+
+    QMessageBox.information(
+        browser,
+        ADDON_NAME,
+        f"Finished splitting selected notes.\n\n"
+        f"New notes created: {created_count}\n"
+        f"Errors: {error_count}",
+    )
+
+
+def on_browser_context_menu(browser: Browser, menu) -> None:
+    action = QAction("Split selected notes with AI", browser)
+    action.triggered.connect(
+        lambda: split_selected_notes_in_browser(browser)
+    )
+    menu.addAction(action)
+
+
+gui_hooks.browser_will_show_context_menu.append(on_browser_context_menu)
 
 gui_hooks.profile_did_open.append(lambda: add_tools_menu_action())
 
