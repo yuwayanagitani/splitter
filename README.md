@@ -1,204 +1,132 @@
-# AI Card Divider (Anki Add-on)
+# AI Card Splitter
 
-AI Card Divider is an Anki add-on that helps you break up cards with long answers into multiple smaller, review-friendly Q&A cards using an AI model.
-
-It is designed for workflows where your notes start as long explanations (e.g., lecture notes, textbook paragraphs, clinical summaries) and you want to convert them into short active-recall cards without doing manual copy/paste.
-
----
-
-## What it does
-
-When you run the add-on on a note whose answer is “too long” (over a character limit you set), it:
-
-1. Sends the note’s question + long answer to an AI provider (OpenAI or Gemini)
-2. Receives multiple short {question, answer} pairs (JSON)
-3. Creates new notes in the same note type and deck
-4. Adds tags so you can track what was created and avoid re-splitting the same source note
-
-The original note is not deleted.
+**AI Card Splitter** is an Anki add-on that uses AI to **automatically split a single flashcard into multiple, smaller cards**.  
+It is designed to help learners avoid oversized cards and maintain an effective **spaced repetition workflow**, especially for complex subjects such as medicine, biology, and law.
 
 ---
 
-## Main entry points
+## 🔗 AnkiWeb Page
 
-The add-on provides two ways to run splitting:
+This add-on is officially published on **AnkiWeb**:
 
-### A) Tools menu (search query mode)
+👉 https://ankiweb.net/shared/info/728208605
 
-Menu item:
-- Tools → AI Card Divider: Split Long Answers...
-
-Flow:
-- You enter a search query (e.g., `deck:Internal tag:med`)
-- The add-on finds notes matching the query
-- It processes only notes where the target answer field exceeds your configured length
-
-### B) Browser context menu (selected notes mode)
-
-In the Browser:
-- Select notes
-- Right-click → Split selected notes with AI
-
-Only selected notes are processed (and only those exceeding the length threshold).
+Installing from AnkiWeb is recommended for the easiest setup and automatic updates.
 
 ---
 
-## Installation
+## 🎯 Key Features
 
-### Option 1: AnkiWeb (recommended)
-- Install the add-on from AnkiWeb (standard Anki add-on workflow)
-- Restart Anki
-
-### Option 2: GitHub / manual
-- Place the add-on folder inside your Anki `addons21` directory
-- Restart Anki
-
----
-
-## Setup: API keys (required)
-
-This add-on reads your API key from an environment variable.
-
-Default environment variables:
-- OpenAI: `OPENAI_API_KEY`
-- Gemini: `GEMINI_API_KEY`
-
-If the environment variable is missing, the add-on will show an error dialog.
-
-Tip: environment variables must be available to the Anki process.
+- Split one card into multiple cards using AI  
+- Works directly from the **Reviewer screen**  
+- Supports **OpenAI** and **Google Gemini** models  
+- Designed for minimal UI interruption and fast workflow  
+- Preserves original content while generating new notes  
+- Optimized for large decks and batch learning
 
 ---
 
-## Configuration
+## 🚀 How It Works
+
+1. You review a card that feels too large or overloaded.  
+2. Trigger **AI Card Splitter** from the review menu.  
+3. The add-on sends the card content to the AI model.  
+4. AI proposes multiple smaller Q&A pairs.  
+5. New cards are created automatically in Anki.
+
+This approach follows the principle:  
+**“One fact, one card.”**
+
+---
+
+## 📦 Installation
+
+### ✅ From AnkiWeb (Recommended)
+
+1. Open Anki  
+2. Go to **Tools → Add-ons → Browse & Install**  
+3. Search for **AI Card Splitter**  
+4. Install and restart Anki
+
+### 📁 From GitHub (Manual)
+
+1. Download or clone this repository  
+2. Place it into:  
+   `Anki2/addons21/anki-ai-splitter`  
+3. Restart Anki
+
+---
+
+## 🔑 API Key Setup
+
+This add-on requires an API key for the selected provider.
+
+| Provider | Environment Variable |
+|--------|----------------------|
+| OpenAI | `OPENAI_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
+
+Set the key via:
+- System environment variables, or  
+- The add-on configuration screen
+
+---
+
+## ⚙️ Configuration
 
 Open:
-- Tools → Add-ons → select “AI Card Divider” → Config
 
-This add-on registers a custom configuration dialog (so you don’t need to edit JSON by hand).
+**Tools → Add-ons → AI Card Splitter → Config**
 
-### General
+Main options include:
 
-- Question field  
-  The field name used as the “question” text (default: `Front`)
-
-- Answer field  
-  The field name used as the “answer” text to split (default: `Back`)
-
-- Max answer chars  
-  Notes are processed only if the answer field exceeds this many characters (default: `220`)
-
+- AI provider selection (OpenAI / Gemini)  
+- Model name  
 - Output language  
-  Language for both generated questions and answers (default: `English`, can also set `Japanese` or any custom text)
-
-- Max cards  
-  Maximum number of split cards to generate per source note (default: `5`)
-
-### Provider
-
-- Provider  
-  Choose `openai` or `gemini`
-
-### OpenAI
-
-- Model (default: `gpt-4o-mini`)
-- API key env (default: `OPENAI_API_KEY`)
-- API base (default: `https://api.openai.com/v1/chat/completions`)
-
-### Gemini
-
-- Model (default: `gemini-2.5-flash`)
-- API key env (default: `GEMINI_API_KEY`)
-- API base (default: `https://generativelanguage.googleapis.com/v1beta`)
-
-### Generation
-
-- Temperature (default: `0.2`)
-- Max output tokens (default: `500`)
-
-### Tags
-
-- Tag for new notes (default: `SplitFromLong`)
-- Tag for original note (default: `LongAnswerSplitSource`)
-
-These tags are important:
-
-- New notes get:
-  - `SplitFromLong`
-  - `SplitFromLong_<SOURCE_NOTE_ID>` (to track provenance)
-
-- The original note gets:
-  - `LongAnswerSplitSource`
-
-Notes with either tag are skipped on future runs to prevent accidental duplication.
+- Split aggressiveness (number / granularity of cards)  
+- Handling of original card (keep / tag / modify)
 
 ---
 
-## What gets copied into new notes
+## 🧪 Usage
 
-For each generated split card, the add-on creates a new note using the same note type as the original.
+### Split the current card
 
-It copies all fields from the original note first, then overwrites:
-- Question field → generated question
-- Answer field → generated answer
+During review:
 
-Tags are based on the original note’s tags plus the new-note tags above.
+**More → AI Card Splitter**
 
-The new note is added to the same deck as the original note’s first card (fallback: current deck).
+The add-on analyzes the current card and generates multiple new cards automatically.
 
 ---
 
-## AI output rules (important)
+## ⚠️ Notes on Privacy
 
-The add-on asks the AI to return JSON only, with this structure:
-
-- a single JSON object
-- a `cards` list
-- each item has `question` and `answer`
-
-Additional constraints requested:
-- no bullet lists
-- no markdown
-- no HTML
-- answers should be concise (about 1–3 sentences)
-
-Some providers sometimes wrap JSON in code fences; the add-on includes robust JSON extraction to handle that.
+Card contents are sent to external AI services.  
+Avoid using cards that contain sensitive or personal information unless you understand the provider’s data policy.
 
 ---
 
-## Troubleshooting
+## 🛠 Troubleshooting
 
-### “API key is missing…”
-Your environment variable is not set (or not visible to Anki).
-- Set `OPENAI_API_KEY` or `GEMINI_API_KEY`
-- Restart Anki after setting it
-
-### “Failed to parse JSON in model response…”
-The model returned non-JSON or truncated output.
-Try:
-- Increasing “Max output tokens”
-- Using a more reliable model
-- Keeping the input answer shorter (or splitting manually into smaller chunks first)
-
-### Nothing happens / “No long answers”
-Check:
-- Field names match your note type (`Front` / `Back` by default)
-- Your “Max answer chars” threshold is not too high
-- The notes aren’t already tagged as processed
-
-### Rate limits / HTTP errors
-- Try fewer notes at once
-- Switch provider/model
-- Wait and retry
+| Problem | Solution |
+|-------|----------|
+| No card selected | Run from the Reviewer screen |
+| API error | Check API key and network |
+| Unexpected splits | Adjust split settings or model |
+| Nothing happens | Confirm the add-on is enabled |
 
 ---
 
-## Privacy / safety
+## 📜 License
 
-This add-on sends note content (question + answer) to the selected AI provider.
-Do not process sensitive or private data unless you understand and accept the provider’s data handling and policies.
+MIT License
 
 ---
 
-## License
+## 🔧 Related Add-ons
 
-See the LICENSE file in this repository.
+- **AI Card Explainer** – Generate explanations for cards  
+- **AI Card Translator** – Translate cards during review  
+
+These add-ons are designed to work together as a modular AI-powered Anki ecosystem.
